@@ -4,6 +4,9 @@ Escriba el codigo que ejecute la accion solicitada.
 
 # pylint: disable=import-outside-toplevel
 
+import pandas as pd
+import zipfile
+import os
 
 def clean_campaign_data():
     """
@@ -49,8 +52,67 @@ def clean_campaign_data():
 
 
     """
-
-    return
+    
+    os.makedirs('files/output', exist_ok=True)
+    
+    all_data = []
+    
+    # Leer todos los archivos zip
+    for i in range(10):
+        zip_path = f'files/input/bank-marketing-campaing-{i}.csv.zip'
+        
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            csv_name = z.namelist()[0]
+            
+            with z.open(csv_name) as f:
+                df = pd.read_csv(f)
+                all_data.append(df)
+    
+    # Combinar todos los datos
+    data = pd.concat(all_data, ignore_index=True)
+    
+    # Crear client.csv
+    client = data[['client_id', 'age', 'job', 'marital', 'education', 'credit_default', 'mortgage']].copy()
+    
+    # Limpiar job
+    client['job'] = client['job'].str.replace('.', '').str.replace('-', '_')
+    
+    # Limpiar education
+    client['education'] = client['education'].str.replace('.', '_')
+    client['education'] = client['education'].replace('unknown', pd.NA)
+    
+    # Convertir credit_default
+    client['credit_default'] = (client['credit_default'] == 'yes').astype(int)
+    
+    # Convertir mortgage (mantener nombre original)
+    client['mortgage'] = (client['mortgage'] == 'yes').astype(int)
+    
+    client.to_csv('files/output/client.csv', index=False)
+    
+    # Crear campaign.csv (mantener nombre original de la columna)
+    campaign = data[['client_id', 'number_contacts', 'contact_duration', 
+                    'previous_campaign_contacts', 'previous_outcome', 
+                    'campaign_outcome', 'day', 'month']].copy()
+    
+    # Convertir previous_outcome
+    campaign['previous_outcome'] = (campaign['previous_outcome'] == 'success').astype(int)
+    
+    # Convertir campaign_outcome
+    campaign['campaign_outcome'] = (campaign['campaign_outcome'] == 'yes').astype(int)
+    
+    # Crear last_contact_date
+    months = {'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+              'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'}
+    
+    campaign['last_contact_date'] = '2022-' + campaign['month'].map(months) + '-' + campaign['day'].astype(str).str.zfill(2)
+    campaign = campaign.drop(['day', 'month'], axis=1)
+    
+    campaign.to_csv('files/output/campaign.csv', index=False)
+    
+    # Crear economics.csv (mantener nombre original)
+    economics = data[['client_id', 'cons_price_idx', 'euribor_three_months']].copy()
+    
+    economics.to_csv('files/output/economics.csv', index=False)
 
 
 if __name__ == "__main__":
